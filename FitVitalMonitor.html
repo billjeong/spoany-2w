@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#06b6d4">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FitVital">
+<meta name="description" content="피트니스 스트리밍 + 바이탈 사인 모니터링 웹 앱">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icon-192.svg">
+<link rel="apple-touch-icon" href="icon-192.svg">
+<title>FitVital Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --cyan: #06b6d4; --cyan-light: #22d3ee; --cyan-glow: rgba(6,182,212,0.3);
+    --teal: #14b8a6; --rose: #f43f5e; --emerald: #10b981; --amber: #f59e0b;
+    --bg: #030712; --surface: #111827; --surface2: rgba(31,41,55,0.6);
+    --border: rgba(55,65,81,0.5); --text: #f9fafb; --text-dim: #9ca3af; --text-muted: #6b7280;
+  }
+  body { font-family: 'JetBrains Mono', monospace; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Header */
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid var(--border); background: rgba(17,24,39,0.5); backdrop-filter: blur(12px); flex-shrink: 0; }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-icon { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, var(--cyan), var(--teal)); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; position: relative; box-shadow: 0 4px 12px rgba(6,182,212,0.2); }
+  .logo-dot { position: absolute; top: -2px; right: -2px; width: 9px; height: 9px; background: var(--emerald); border-radius: 50%; border: 2px solid var(--bg); animation: pulse 2s infinite; }
+  .logo-text h1 { font-size: 13px; font-weight: 600; letter-spacing: 0.5px; }
+  .logo-text h1 span { color: var(--cyan); }
+  .logo-text p { font-size: 9px; color: var(--text-muted); letter-spacing: 2px; }
+  .header-right { display: flex; align-items: center; gap: 14px; }
+  .version-badge { font-size: 10px; color: var(--text-muted); background: rgba(31,41,55,0.4); padding: 4px 10px; border-radius: 6px; }
+
+  /* Toggle */
+  .toggle-wrap { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .toggle-track { width: 38px; height: 20px; border-radius: 10px; background: #374151; position: relative; transition: background 0.3s; }
+  .toggle-track.on { background: var(--cyan-glow); }
+  .toggle-thumb { width: 16px; height: 16px; border-radius: 50%; background: #6b7280; position: absolute; top: 2px; left: 2px; transition: all 0.3s; }
+  .toggle-track.on .toggle-thumb { left: 20px; background: var(--cyan-light); box-shadow: 0 0 8px var(--cyan-glow); }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #ef4444; transition: all 0.5s; }
+  .status-dot.on { background: var(--emerald); box-shadow: 0 0 8px rgba(16,185,129,0.5); animation: pulse 2s infinite; }
+  .status-text { font-size: 11px; transition: color 0.3s; }
+  .status-text.on { color: var(--emerald); }
+  .status-text.off { color: var(--text-muted); }
+
+  /* Main Layout */
+  .main { flex: 1; display: flex; flex-direction: column; padding: 8px 12px; gap: 8px; overflow: hidden; min-height: 0; }
+
+  /* Player — 세로 기준 80% */
+  .player-wrap { height: calc(100vh - 44px - 16px - 8px); max-height: 80vh; min-height: 60vh; position: relative; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); flex-shrink: 0; }
+  .player-wrap iframe, .player-wrap #yt-player { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .player-loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--surface); z-index: 5; transition: opacity 0.5s; }
+  .player-loading.hidden { opacity: 0; pointer-events: none; }
+  .spinner { width: 40px; height: 40px; border: 2px solid var(--cyan-glow); border-top-color: var(--cyan); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 12px; }
+
+  /* Controls overlay */
+  .controls-overlay { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0.4) 60%, transparent); padding: 40px 16px 10px; z-index: 10; opacity: 0; transition: opacity 0.3s; }
+  .player-wrap:hover .controls-overlay { opacity: 1; }
+  .progress-bar { width: 100%; height: 4px; background: rgba(75,85,99,0.6); border-radius: 4px; cursor: pointer; margin-bottom: 10px; position: relative; }
+  .progress-bar:hover { height: 6px; }
+  .progress-buffered { position: absolute; inset: 0; background: rgba(107,114,128,0.3); border-radius: 4px; }
+  .progress-played { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--cyan-light)); border-radius: 4px; position: relative; transition: width 0.3s linear; }
+  .progress-thumb { position: absolute; right: -6px; top: 50%; transform: translateY(-50%) scale(0); width: 12px; height: 12px; background: var(--cyan-light); border-radius: 50%; box-shadow: 0 0 8px var(--cyan-glow); transition: transform 0.2s; }
+  .progress-bar:hover .progress-thumb { transform: translateY(-50%) scale(1); }
+  .controls-row { display: flex; align-items: center; justify-content: space-between; }
+  .controls-left, .controls-right { display: flex; align-items: center; gap: 10px; }
+  .ctrl-btn { width: 30px; height: 30px; border: none; border-radius: 50%; background: rgba(255,255,255,0.1); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+  .ctrl-btn:hover { background: var(--cyan-glow); color: var(--cyan-light); }
+  .time-display { font-size: 11px; color: #d1d5db; }
+  .time-display .sep { color: #4b5563; }
+  .vol-bar { width: 60px; height: 3px; background: #374151; border-radius: 3px; cursor: pointer; overflow: hidden; }
+  .vol-fill { height: 100%; background: rgba(255,255,255,0.7); border-radius: 3px; }
+
+  /* Center play btn */
+  .center-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 8; cursor: pointer; }
+  .center-play-btn { width: 64px; height: 64px; border-radius: 50%; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; transition: all 0.3s; }
+  .center-play-btn:hover { background: rgba(6,182,212,0.2); }
+  .center-play.hidden { display: none; }
+
+  /* Playlist */
+  .playlist-btn { width: 28px; height: 28px; border: none; border-radius: 6px; background: rgba(255,255,255,0.1); color: #9ca3af; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+  .playlist-btn:hover { background: var(--cyan-glow); color: var(--cyan-light); }
+  .playlist-panel { position: absolute; top: 8px; right: 8px; width: 240px; background: rgba(17,24,39,0.95); backdrop-filter: blur(12px); border: 1px solid var(--border); border-radius: 12px; z-index: 30; display: none; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+  .playlist-panel.show { display: block; }
+  .playlist-header { padding: 8px 12px; border-bottom: 1px solid rgba(55,65,81,0.5); display: flex; justify-content: space-between; align-items: center; }
+  .playlist-header span { font-size: 10px; color: var(--cyan); font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; }
+  .playlist-close { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; }
+  .playlist-item { width: 100%; padding: 8px 12px; border: none; background: none; color: var(--text-dim); font-size: 11px; font-family: inherit; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; text-align: left; }
+  .playlist-item:hover { background: rgba(31,41,55,0.8); color: white; }
+  .playlist-item.active { background: rgba(6,182,212,0.1); color: var(--cyan-light); }
+  .playlist-num { width: 20px; height: 20px; border-radius: 4px; background: rgba(31,41,55,0.8); display: flex; align-items: center; justify-content: center; font-size: 9px; color: var(--text-muted); flex-shrink: 0; }
+  .playlist-item.active .playlist-num { background: var(--cyan-glow); color: var(--cyan-light); }
+
+  /* Dashboard — 나머지 20% */
+  .dashboard { flex: 1; display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: hidden; }
+  .vitals-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .vital-card { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; backdrop-filter: blur(4px); transition: border-color 0.3s; }
+  .vital-card:hover { border-color: var(--cyan-glow); }
+  .vital-icon { font-size: 16px; margin-bottom: 4px; }
+  .vital-value { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+  .vital-unit { font-size: 10px; opacity: 0.7; margin-left: 2px; }
+  .vital-label { font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px; margin-top: 4px; }
+
+  /* Bottom bar */
+  .bottom-bar { display: flex; gap: 10px; flex: 1; min-height: 0; }
+  .conn-info { display: flex; align-items: center; gap: 12px; background: rgba(31,41,55,0.4); border: 1px solid rgba(55,65,81,0.3); border-radius: 12px; padding: 6px 14px; font-size: 11px; flex-shrink: 0; }
+  .conn-label { color: var(--text-muted); }
+  .conn-val { color: var(--cyan); font-weight: 600; }
+  .conn-val.green { color: var(--emerald); }
+  .conn-sep { width: 1px; height: 16px; background: #374151; }
+  .chart-box { flex: 1; background: rgba(31,41,55,0.4); border: 1px solid rgba(55,65,81,0.3); border-radius: 12px; padding: 6px 10px; min-height: 50px; display: flex; flex-direction: column; }
+  .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+  .chart-title { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; }
+  .chart-val { font-size: 9px; color: rgba(6,182,212,0.7); }
+  .chart-area { flex: 1; position: relative; min-height: 30px; }
+  canvas { width: 100% !important; height: 100% !important; }
+
+  /* Disconnected overlay */
+  .dc-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .dc-overlay.hidden { display: none; }
+  .dc-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; text-align: center; max-width: 320px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .dc-icon { width: 56px; height: 56px; border-radius: 50%; background: rgba(239,68,68,0.1); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+  .dc-icon-dot { width: 14px; height: 14px; border-radius: 50%; background: #f87171; animation: pulse 1.5s infinite; }
+  .dc-modal h3 { font-size: 16px; margin-bottom: 8px; }
+  .dc-modal p { font-size: 12px; color: var(--text-dim); margin-bottom: 20px; line-height: 1.6; }
+  .dc-btn { padding: 10px 24px; background: linear-gradient(135deg, var(--cyan), var(--teal)); border: none; border-radius: 10px; color: white; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all 0.3s; }
+  .dc-btn:hover { box-shadow: 0 8px 20px rgba(6,182,212,0.3); }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .vitals-grid { grid-template-columns: repeat(2, 1fr); }
+    .bottom-bar { flex-direction: column; }
+    .version-badge { display: none; }
+    .vital-value { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="logo">
+    <div class="logo-icon">FV<div class="logo-dot" id="logoDot"></div></div>
+    <div class="logo-text">
+      <h1><span>FitVital</span> Monitor</h1>
+      <p>REAL-TIME FITNESS MONITORING</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="version-badge">v1.0 | Phase 1 MVP</div>
+    <div class="toggle-wrap" id="toggleWrap" onclick="toggleConnection()">
+      <div class="toggle-track on" id="toggleTrack"><div class="toggle-thumb"></div></div>
+      <div class="status-dot on" id="statusDot"></div>
+      <span class="status-text on" id="statusText">Connected</span>
+    </div>
+  </div>
+</header>
+
+<!-- Main -->
+<main class="main">
+  <!-- Player -->
+  <div class="player-wrap" id="playerWrap">
+    <div id="yt-player"></div>
+    <div class="player-loading" id="playerLoading">
+      <div class="spinner"></div>
+      <p style="font-size:13px;color:#9ca3af;">Loading YouTube Player...</p>
+      <p style="font-size:10px;color:#4b5563;margin-top:4px;">YouTube IFrame API</p>
+    </div>
+
+    <div class="center-play" id="centerPlay" onclick="togglePlay()">
+      <div class="center-play-btn">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+    </div>
+
+    <div class="controls-overlay">
+      <div class="progress-bar" id="progressBar" onclick="handleSeek(event)">
+        <div class="progress-buffered" id="progressBuffered"></div>
+        <div class="progress-played" id="progressPlayed" style="width:0%">
+          <div class="progress-thumb"></div>
+        </div>
+      </div>
+      <div class="controls-row">
+        <div class="controls-left">
+          <button class="ctrl-btn" onclick="togglePlay()" id="playBtn">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 1.5v11l9-5.5z"/></svg>
+          </button>
+          <span class="time-display"><span id="curTime">00:00</span> <span class="sep">/</span> <span id="durTime">00:00</span></span>
+        </div>
+        <div class="controls-right">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 010 7.08"/></svg>
+          <div class="vol-bar" onclick="handleVolume(event)"><div class="vol-fill" id="volFill" style="width:75%"></div></div>
+          <button class="playlist-btn" onclick="togglePlaylist()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="playlist-panel" id="playlistPanel">
+      <div class="playlist-header">
+        <span>Fitness Playlist</span>
+        <button class="playlist-close" onclick="togglePlaylist()">✕</button>
+      </div>
+      <div id="playlistItems"></div>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="dashboard">
+    <div class="vitals-grid">
+      <div class="vital-card">
+        <div class="vital-icon">❤️</div>
+        <div class="vital-value" style="color:#f43f5e;text-shadow:0 0 12px rgba(244,63,94,0.25)"><span id="vHR">79</span><span class="vital-unit">bpm</span></div>
+        <div class="vital-label">Heart Rate</div>
+      </div>
+      <div class="vital-card">
+        <div class="vital-icon">🫁</div>
+        <div class="vital-value" style="color:#06b6d4;text-shadow:0 0 12px rgba(6,182,212,0.25)"><span id="vResp">12</span><span class="vital-unit">/min</span></div>
+        <div class="vital-label">Resp Rate</div>
+      </div>
+      <div class="vital-card">
+        <div class="vital-icon">💧</div>
+        <div class="vital-value" style="color:#10b981;text-shadow:0 0 12px rgba(16,185,129,0.25)"><span id="vSpO2">98</span><span class="vital-unit">%</span></div>
+        <div class="vital-label">SpO2</div>
+      </div>
+      <div class="vital-card">
+        <div class="vital-icon">⚡</div>
+        <div class="vital-value" style="color:#f59e0b;text-shadow:0 0 12px rgba(245,158,11,0.25)"><span id="vVO2">51</span><span class="vital-unit"></span></div>
+        <div class="vital-label">VO2Max</div>
+      </div>
+    </div>
+
+    <div class="bottom-bar">
+      <div class="conn-info">
+        <div><span class="conn-label">Bitrate: </span><span class="conn-val" id="cBitrate">4.2 Mbps</span></div>
+        <div class="conn-sep"></div>
+        <div><span class="conn-label">RT: </span><span class="conn-val" id="cRT">12ms</span></div>
+        <div class="conn-sep"></div>
+        <div><span class="conn-label">FPS: </span><span class="conn-val green">60</span></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-header">
+          <span class="chart-title">Bitrate Trend</span>
+          <span class="chart-val" id="chartBitrateVal">4.2 Mbps</span>
+        </div>
+        <div class="chart-area"><canvas id="bitrateCanvas"></canvas></div>
+      </div>
+      <div class="chart-box" style="max-width:160px">
+        <div class="chart-header">
+          <span class="chart-title">HR</span>
+          <span class="chart-val" style="color:rgba(244,63,94,0.7)" id="chartHRVal">79</span>
+        </div>
+        <div class="chart-area"><canvas id="hrCanvas"></canvas></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Disconnected Overlay -->
+<div class="dc-overlay hidden" id="dcOverlay">
+  <div class="dc-modal">
+    <div class="dc-icon"><div class="dc-icon-dot"></div></div>
+    <h3>Device Disconnected</h3>
+    <p>Vital sign monitoring is paused. Toggle the connection switch to resume real-time data.</p>
+    <button class="dc-btn" onclick="toggleConnection()">Reconnect</button>
+  </div>
+</div>
+
+<!-- YouTube IFrame API -->
+<script>
+const VIDEOS = [
+  { id: "gC_L9qAHVJ8", title: "30 Min Full Body HIIT Workout" },
+  { id: "ml6cT4AZdqI", title: "20 Min Fat Burning Cardio" },
+  { id: "UBMk30rjy0o", title: "Full Body Stretch & Recovery" },
+  { id: "cbKkB3POqYs", title: "15 Min Core Workout" },
+];
+
+let player = null, isReady = false, isPlaying = false, connected = true, selectedIdx = 0;
+let vitals = { hr: 79, resp: 12, spo2: 98, vo2: 51 };
+let bitrateData = Array.from({length: 40}, () => 3.5 + Math.random() * 2);
+let hrData = Array.from({length: 40}, () => 75 + Math.random() * 8);
+let updateTimer = null;
+
+// ── YouTube IFrame API ──
+const tag = document.createElement("script");
+tag.src = "https://www.youtube.com/iframe_api";
+document.head.appendChild(tag);
+
+function onYouTubeIframeAPIReady() {
+  player = new YT.Player("yt-player", {
+    videoId: VIDEOS[selectedIdx].id,
+    playerVars: { autoplay: 0, controls: 0, modestbranding: 1, rel: 0, showinfo: 0, fs: 0, iv_load_policy: 3, disablekb: 1, playsinline: 1 },
+    events: { onReady: onPlayerReady, onStateChange: onPlayerStateChange }
+  });
+}
+
+function onPlayerReady(e) {
+  isReady = true;
+  document.getElementById("playerLoading").classList.add("hidden");
+  e.target.setVolume(75);
+  renderPlaylist();
+}
+
+function onPlayerStateChange(e) {
+  isPlaying = e.data === YT.PlayerState.PLAYING;
+  updatePlayBtn();
+  document.getElementById("centerPlay").classList.toggle("hidden", isPlaying);
+}
+
+// ── Controls ──
+function togglePlay() {
+  if (!player) return;
+  if (isPlaying) player.pauseVideo(); else player.playVideo();
+}
+
+function updatePlayBtn() {
+  const btn = document.getElementById("playBtn");
+  btn.innerHTML = isPlaying
+    ? '<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="2" y="1" width="3.5" height="12" rx="1"/><rect x="8.5" y="1" width="3.5" height="12" rx="1"/></svg>'
+    : '<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 1.5v11l9-5.5z"/></svg>';
+}
+
+function handleSeek(e) {
+  if (!player || !player.getDuration) return;
+  const bar = document.getElementById("progressBar");
+  const rect = bar.getBoundingClientRect();
+  const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  player.seekTo(ratio * player.getDuration(), true);
+}
+
+function handleVolume(e) {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  const vol = Math.round(ratio * 100);
+  document.getElementById("volFill").style.width = vol + "%";
+  if (player?.setVolume) player.setVolume(vol);
+}
+
+function formatTime(s) {
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return m.toString().padStart(2, "0") + ":" + sec.toString().padStart(2, "0");
+}
+
+// ── Playlist ──
+function renderPlaylist() {
+  const el = document.getElementById("playlistItems");
+  el.innerHTML = VIDEOS.map((v, i) =>
+    `<button class="playlist-item ${i === selectedIdx ? 'active' : ''}" onclick="selectVideo(${i})">
+      <span class="playlist-num">${i === selectedIdx ? '▶' : i + 1}</span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v.title}</span>
+    </button>`
+  ).join("");
+}
+
+function selectVideo(i) {
+  selectedIdx = i;
+  if (player?.loadVideoById) player.loadVideoById(VIDEOS[i].id);
+  renderPlaylist();
+  togglePlaylist();
+}
+
+function togglePlaylist() {
+  document.getElementById("playlistPanel").classList.toggle("show");
+}
+
+// ── Connection Toggle ──
+function toggleConnection() {
+  connected = !connected;
+  const track = document.getElementById("toggleTrack");
+  const dot = document.getElementById("statusDot");
+  const text = document.getElementById("statusText");
+  const overlay = document.getElementById("dcOverlay");
+  const logoDot = document.getElementById("logoDot");
+
+  track.classList.toggle("on", connected);
+  dot.classList.toggle("on", connected);
+  text.className = "status-text " + (connected ? "on" : "off");
+  text.textContent = connected ? "Connected" : "Disconnected";
+  overlay.classList.toggle("hidden", connected);
+  logoDot.style.display = connected ? "block" : "none";
+
+  if (connected) startDataLoop(); else stopDataLoop();
+}
+
+// ── Data Simulation ──
+function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+
+function startDataLoop() {
+  stopDataLoop();
+  updateTimer = setInterval(() => {
+    // Vitals
+    vitals.hr = clamp(vitals.hr + (Math.random() - 0.5) * 4, 60, 120);
+    vitals.resp = clamp(vitals.resp + (Math.random() - 0.5) * 1.5, 8, 24);
+    vitals.spo2 = clamp(vitals.spo2 + (Math.random() - 0.5) * 0.8, 94, 100);
+    vitals.vo2 = clamp(vitals.vo2 + (Math.random() - 0.5) * 1.2, 35, 65);
+
+    document.getElementById("vHR").textContent = Math.round(vitals.hr);
+    document.getElementById("vResp").textContent = Math.round(vitals.resp);
+    document.getElementById("vSpO2").textContent = Math.round(vitals.spo2);
+    document.getElementById("vVO2").textContent = Math.round(vitals.vo2);
+
+    // Connection info
+    const br = (3 + Math.random() * 3).toFixed(1);
+    const rt = Math.round(8 + Math.random() * 15);
+    document.getElementById("cBitrate").textContent = br + " Mbps";
+    document.getElementById("cRT").textContent = rt + "ms";
+    document.getElementById("chartBitrateVal").textContent = br + " Mbps";
+    document.getElementById("chartHRVal").textContent = Math.round(vitals.hr);
+
+    // Chart data
+    bitrateData.push(parseFloat(br));
+    bitrateData.shift();
+    hrData.push(vitals.hr);
+    hrData.shift();
+
+    drawChart("bitrateCanvas", bitrateData, "#06b6d4", 0, 8, true);
+    drawChart("hrCanvas", hrData, "#f43f5e", 55, 125, false);
+
+    // Player progress
+    if (player && player.getCurrentTime && player.getDuration) {
+      const cur = player.getCurrentTime(), dur = player.getDuration();
+      if (dur > 0) {
+        document.getElementById("progressPlayed").style.width = (cur / dur * 100) + "%";
+        document.getElementById("progressBuffered").style.width = Math.min(100, cur / dur * 100 + 15) + "%";
+        document.getElementById("curTime").textContent = formatTime(cur);
+        document.getElementById("durTime").textContent = formatTime(dur);
+      }
+    }
+  }, 1000);
+}
+
+function stopDataLoop() { clearInterval(updateTimer); }
+
+// ── Canvas Charts ──
+function drawChart(canvasId, data, color, yMin, yMax, fill) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * 2;
+  canvas.height = rect.height * 2;
+  ctx.scale(2, 2);
+  const w = rect.width, h = rect.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const len = data.length;
+  const stepX = w / (len - 1);
+
+  ctx.beginPath();
+  for (let i = 0; i < len; i++) {
+    const x = i * stepX;
+    const y = h - ((data[i] - yMin) / (yMax - yMin)) * h;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  if (fill) {
+    ctx.lineTo((len - 1) * stepX, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, color + "40");
+    grad.addColorStop(1, color + "00");
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+}
+
+// ── Init ──
+startDataLoop();
+drawChart("bitrateCanvas", bitrateData, "#06b6d4", 0, 8, true);
+drawChart("hrCanvas", hrData, "#f43f5e", 55, 125, false);
+
+// ── PWA Service Worker Registration ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then((reg) => console.log('[PWA] Service Worker registered:', reg.scope))
+      .catch((err) => console.warn('[PWA] SW registration failed:', err));
+  });
+}
+</script>
+</body>
+</html>
