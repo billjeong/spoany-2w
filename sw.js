@@ -1,9 +1,12 @@
-const CACHE_NAME = 'fitvital-v1.1';
+const CACHE_NAME = 'fitvital-v1.2';
 const ASSETS_TO_CACHE = [
-  './FitVitalMonitor.html',
+  './',
+  './index.html',
   './manifest.json',
-  './icon-192.svg',
-  './icon-512.svg',
+  './icon-192.png',
+  './icon-512.png',
+  './screenshot-wide.png',
+  './screenshot-narrow.png',
   'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap'
 ];
 
